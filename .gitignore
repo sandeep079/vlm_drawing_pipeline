@@ -1,0 +1,18 @@
+# Environment / secrets
+.env
+*.key
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Large / generated files
+outputs/crops/*
+outputs/json/*
+!outputs/crops/.gitkeep
+!outputs/json/.gitkeep
+*.pdf
+reference_samples/*.pdf
+
+# OS junk
+.DS_Store
