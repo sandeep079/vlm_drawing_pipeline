@@ -1,0 +1,29 @@
+# Model configs used across pipeline stages.
+# Add/remove entries as you benchmark different VLMs (task deliverable
+# requires comparing at least one open-weight vs one API model).
+
+qwen2.5-vl-72b-openrouter:
+  provider: openrouter
+  model_id: qwen/qwen2.5-vl-72b-instruct
+  base_url: https://openrouter.ai/api/v1
+  temperature: 0
+  max_tokens: 512
+
+qwen2.5-vl-7b-openrouter:
+  provider: openrouter
+  model_id: qwen/qwen2.5-vl-7b-instruct
+  base_url: https://openrouter.ai/api/v1
+  temperature: 0
+  max_tokens: 512
+
+claude-sonnet:
+  provider: anthropic
+  model_id: claude-sonnet-4-6
+  temperature: 0
+  max_tokens: 512
+
+gpt-4o:
+  provider: openai
+  model_id: gpt-4o
+  temperature: 0
+  max_tokens: 512
