@@ -1,0 +1,27 @@
+You are analyzing a full-page manufacturing/technical drawing. Locate every
+region on the page belonging to these types:
+
+- flat_pattern      (unfolded/developed sheet-metal view, if present)
+- orthographic_view (front/top/side projection views)
+- isometric_view    (3D isometric or pictorial view)
+- section_view      (cross-section view, often hatched, showing wall thickness)
+- title_block       (the bordered block containing part number, material,
+                      drawing number, revision, notes — usually bottom-right
+                      or along one edge)
+
+A drawing may contain zero or more of each type — do not force a match if a
+region type isn't present. Do not confuse a section view with an orthographic
+view: section views typically show hatching/cross-hatch fill.
+
+Return ONLY a JSON array, no markdown fences, no extra text, in exactly this
+schema:
+
+[
+  {"label": "<one of the 5 types above>", "box_2d": [x0, y0, x1, y1], "conf": <float 0.0-1.0>},
+  ...
+]
+
+Coordinates MUST be [x_min, y_min, x_max, y_max] normalized to a 0-1000 scale
+relative to the full image width and height (NOT pixel coordinates, NOT 0-1).
+For example, a box covering the left half of the page would have x0 near 0
+and x1 near 500.
