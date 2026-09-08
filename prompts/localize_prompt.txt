@@ -1,27 +1,19 @@
-You are analyzing a full-page manufacturing/technical drawing. Locate every
-region on the page belonging to these types:
+You are an expert engineering drawing parser.
+Analyze this technical drawing image and detect ALL distinct visual components on the page.
 
-- flat_pattern      (unfolded/developed sheet-metal view, if present)
-- orthographic_view (front/top/side projection views)
-- isometric_view    (3D isometric or pictorial view)
-- section_view      (cross-section view, often hatched, showing wall thickness)
-- title_block       (the bordered block containing part number, material,
-                      drawing number, revision, notes — usually bottom-right
-                      or along one edge)
+Extract bounding boxes in 0-1000 normalized coordinates [ymin, xmin, ymax, xmax] for every instance of:
+1. "title_block": The entire metadata table in the bottom-right corner (include revisions, tolerances, company logos).
+2. "orthographic_view": 2D projected engineering views (front, top, side) including their surrounding dimension lines.
+3. "isometric_view": 3D projected views of the component.
+4. "flat_pattern": Unfolded sheet metal layout views, if present.
 
-A drawing may contain zero or more of each type — do not force a match if a
-region type isn't present. Do not confuse a section view with an orthographic
-view: section views typically show hatching/cross-hatch fill.
-
-Return ONLY a JSON array, no markdown fences, no extra text, in exactly this
-schema:
-
-[
-  {"label": "<one of the 5 types above>", "box_2d": [x0, y0, x1, y1], "conf": <float 0.0-1.0>},
-  ...
-]
-
-Coordinates MUST be [x_min, y_min, x_max, y_max] normalized to a 0-1000 scale
-relative to the full image width and height (NOT pixel coordinates, NOT 0-1).
-For example, a box covering the left half of the page would have x0 near 0
-and x1 near 500.
+Return ONLY a valid JSON object matching this exact schema:
+{
+  "regions": [
+    {
+      "label": "title_block",
+      "box_2d": [ymin, xmin, ymax, xmax],
+      "conf": 0.95
+    }
+  ]
+}
