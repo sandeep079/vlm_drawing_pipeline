@@ -21,14 +21,23 @@ DEFAULT_MODEL = "qwen2.5vl:7b"
 PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "localize_prompt.txt"
 
 
-def pdf_to_png_bytes(pdf_path: Path, dpi: int = 100) -> bytes:
-    """Renders the first page of a PDF to PNG image bytes at specified DPI."""
+def pdf_to_png_bytes(pdf_path: Path, dpi: int = 100, max_dim: int = 1024) -> tuple[bytes, Image.Image]:
+    """
+    Renders the first page of a PDF and resizes it so its longest dimension 
+    does not exceed max_dim. This drastically reduces token count and speeds up inference.
+    """
     doc = fitz.open(pdf_path)
     page = doc[0]
     zoom = dpi / 72.0
     mat = fitz.Matrix(zoom, zoom)
     pix = page.get_pixmap(matrix=mat)
-    return pix.tobytes("png")
+
+    img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
+    img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    return buffer.getvalue(), img
 
 
 def normalized_to_pixels(box_2d: list, img_width: int, img_height: int, pad_px: int = 15) -> tuple[int, int, int, int]:
@@ -47,7 +56,7 @@ def normalized_to_pixels(box_2d: list, img_width: int, img_height: int, pad_px: 
 
 
 def call_ollama_grounding(image_bytes: bytes, prompt: str, model_name: str = DEFAULT_MODEL) -> tuple[list, float]:
-    """Sends image and grounding prompt to local Ollama chat endpoint with extended timeout."""
+    """Sends image and grounding prompt to local Ollama chat endpoint."""
     b64_image = base64.b64encode(image_bytes).decode("utf-8")
 
     payload = {
@@ -68,18 +77,16 @@ def call_ollama_grounding(image_bytes: bytes, prompt: str, model_name: str = DEF
 
     start = time.time()
     try:
-        # Timeout set to 300s (5 mins) to handle cold model loading and GPU vision encoding
         resp = requests.post(OLLAMA_URL, json=payload, timeout=300)
         resp.raise_for_status()
     except requests.exceptions.ConnectionError:
         raise RuntimeError(
             f"Could not connect to Ollama server at {OLLAMA_URL}. "
-            f"Ensure Ollama server is running in the background."
+            f"Ensure Ollama server is running (`ollama serve`)."
         )
     except requests.exceptions.ReadTimeout:
         raise RuntimeError(
-            f"Ollama server timed out after 300s processing '{model_name}'. "
-            f"The image or hardware execution took too long."
+            f"Ollama server timed out after 300s processing '{model_name}'."
         )
 
     elapsed = time.time() - start
@@ -96,9 +103,13 @@ def call_ollama_grounding(image_bytes: bytes, prompt: str, model_name: str = DEF
     cleaned = cleaned.strip()
 
     try:
-        boxes = json.loads(cleaned)
-        if isinstance(boxes, dict):
-            boxes = boxes.get("regions", boxes.get("boxes", [boxes]))
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, dict):
+            boxes = parsed.get("regions", parsed.get("boxes", [parsed]))
+        elif isinstance(parsed, list):
+            boxes = parsed
+        else:
+            boxes = []
     except json.JSONDecodeError:
         boxes = [{"label": "PARSE_ERROR", "box_2d": [0, 0, 0, 0], "conf": 0.0, "raw": raw_text}]
 
@@ -112,6 +123,7 @@ def main():
     parser.add_argument("--crops", required=True, help="Folder to write cropped region PNGs")
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Ollama model name")
     parser.add_argument("--dpi", type=int, default=100, help="PDF rendering DPI")
+    parser.add_argument("--max-dim", type=int, default=1024, help="Max width/height pixel dimension for Vision Model")
     args = parser.parse_args()
 
     input_dir = Path(args.input)
@@ -132,8 +144,9 @@ def main():
 
     for pdf_path in pdf_files:
         print(f"Localizing {pdf_path.name} using model '{args.model}'...")
-        image_bytes = pdf_to_png_bytes(pdf_path, dpi=args.dpi)
-        pil_image = Image.open(io.BytesIO(image_bytes))
+        
+        # Render and downscale to max_dim (1024px) for fast inference
+        image_bytes, pil_image = pdf_to_png_bytes(pdf_path, dpi=args.dpi, max_dim=args.max_dim)
         img_w, img_h = pil_image.size
 
         boxes, elapsed = call_ollama_grounding(image_bytes, prompt, model_name=args.model)
