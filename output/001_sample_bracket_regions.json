@@ -1,0 +1,95 @@
+{
+  "drawing_id": "001_sample_bracket",
+  "regions": [
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        1262,
+        523,
+        2279,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        256,
+        525,
+        998,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "orthographic_view",
+      "bbox": [
+        1262,
+        521,
+        2279,
+        1262
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "orthographic_view",
+      "bbox": [
+        256,
+        521,
+        998,
+        1262
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        1262,
+        523,
+        2279,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        256,
+        523,
+        998,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        1262,
+        521,
+        2279,
+        1262
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        1262,
+        446,
+        1904,
+        493
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        256,
+        446,
+        726,
+        493
+      ],
+      "conf": 0.92
+    }
+  ]
+}

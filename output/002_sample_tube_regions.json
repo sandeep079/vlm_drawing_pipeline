@@ -1,0 +1,75 @@
+{
+  "drawing_id": "002_sample_tube",
+  "regions": [
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        393,
+        570,
+        1045,
+        1221
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "orthographic_view",
+      "bbox": [
+        393,
+        568,
+        1045,
+        1219
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "isometric_view",
+      "bbox": [
+        393,
+        570,
+        1045,
+        1221
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        393,
+        570,
+        1045,
+        1221
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        393,
+        570,
+        1045,
+        1221
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        390,
+        448,
+        1207,
+        495
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        1607,
+        1540,
+        2251,
+        1587
+      ],
+      "conf": 0.92
+    }
+  ]
+}

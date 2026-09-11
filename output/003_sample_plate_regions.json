@@ -1,0 +1,95 @@
+{
+  "drawing_id": "003_sample_plate",
+  "regions": [
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        1262,
+        525,
+        2279,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        256,
+        525,
+        998,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "orthographic_view",
+      "bbox": [
+        1262,
+        521,
+        2282,
+        1262
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "orthographic_view",
+      "bbox": [
+        256,
+        521,
+        1001,
+        1262
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        1262,
+        523,
+        2282,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        256,
+        523,
+        1001,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        1259,
+        448,
+        1898,
+        493
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        1259,
+        521,
+        2276,
+        1262
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        254,
+        523,
+        995,
+        1262
+      ],
+      "conf": 0.92
+    }
+  ]
+}

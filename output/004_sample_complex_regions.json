@@ -1,0 +1,85 @@
+{
+  "drawing_id": "004_sample_complex",
+  "regions": [
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        1262,
+        525,
+        2276,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        254,
+        525,
+        995,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "orthographic_view",
+      "bbox": [
+        1259,
+        521,
+        2276,
+        1262
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        1262,
+        523,
+        2279,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        254,
+        523,
+        998,
+        1264
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        1262,
+        521,
+        2276,
+        1262
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        1259,
+        446,
+        1901,
+        493
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        254,
+        446,
+        723,
+        491
+      ],
+      "conf": 0.92
+    }
+  ]
+}
