@@ -10,11 +10,29 @@ Developed for **AAI Labs (2026)**.
 
 The processing pipeline runs sequentially across three vision-language stages:
 
+```mermaid
+flowchart LR
+    A[📄 PDF Drawing] --> B[Stage 1: Localize]
+    B --> C[Stage 2: Classify]
+    C --> D[Stage 3: Count Bends]
+    D --> E[📦 Structured JSON Output]
+
+    B -.-> B1["Florence-2-base<br/>flat_pattern · orthographic_view<br/>isometric_view · section_view · title_block"]
+    C -.-> C1["Florence-2 / Qwen2.5-VL<br/>Title block OCR + region crops<br/>→ sheet vs. tube"]
+    D -.-> D1["Florence-2 / VLM<br/>Fold/bend line detection<br/>corroborated by side + iso views"]
+
+    style A fill:#e8eef7,stroke:#4a6fa5
+    style E fill:#e8f7ec,stroke:#4a9e5c
+    style B fill:#fff4e0,stroke:#c98a1f
+    style C fill:#fff4e0,stroke:#c98a1f
+    style D fill:#fff4e0,stroke:#c98a1f
+```
+
 | Stage | Name | Model | Purpose | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Stage 1** | **Localize** | Florence-2-base | Grounding model locates `flat_pattern`, `orthographic_view`, `isometric_view`, `section_view`, and `title_block` regions with bounding boxes. | **Completed** |
-| **Stage 2** | **Classify** | Florence-2 / Qwen2.5-VL | Extracts title block text and region crops to classify part type (`sheet` vs. `tube`). | **Completed** |
-| **Stage 3** | **Count Bends** | Florence-2 / VLM | Detects fold/bend lines in flat pattern views corroborated by side and isometric projections. | **Completed** |
+| **Stage 1** | **Localize** | Florence-2-base | Grounding model locates `flat_pattern`, `orthographic_view`, `isometric_view`, `section_view`, and `title_block` regions with bounding boxes. | ✅ Completed |
+| **Stage 2** | **Classify** | Florence-2 / Qwen2.5-VL | Extracts title block text and region crops to classify part type (`sheet` vs. `tube`). | ✅ Completed |
+| **Stage 3** | **Count Bends** | Florence-2 / VLM | Detects fold/bend lines in flat pattern views corroborated by side and isometric projections. | ✅ Completed |
 
 ---
 
@@ -23,9 +41,9 @@ The processing pipeline runs sequentially across three vision-language stages:
 The baseline reference dataset consists of standardized engineering drawings and synthetic benchmark samples:
 
 | Drawing ID | Part Class | Bends | Key Discriminating Signal |
-| :--- | :--- | :--- | :--- |
+| :--- | :--- | :---: | :--- |
 | `001_BRACKET` | `sheet` | 2 | `Abwicklung` present; U-channel side profile indicates 2 folds |
-| `002_PLATE` | `sheet` | 0 | Flat plate profile; corner chamfers (2x45°) are cut features, not bends |
+| `002_PLATE` | `sheet` | 0 | Flat plate profile; corner chamfers (2×45°) are cut features, not bends |
 | `003_SQUARE_TUBE` | `tube` | N/A | Closed hollow square section (`ROHR 80X80`) + linear extrude length |
 | `004_ADAPTER_PLATE` | `sheet` | 0 | Flat bar stock; stepped edge profiles represent milling/laser cuts |
 
@@ -33,46 +51,47 @@ The baseline reference dataset consists of standardized engineering drawings and
 
 ## Repository Structure
 
+```
 vlm-drawing-pipeline/
 ├── src/
-│   ├── localize.py          # Stage 1: Bounding box region detection
-│   ├── classify.py          # Stage 2: OCR & part type classification
-│   ├── count_bends.py       # Stage 3: Bend line detection & counting
-│   ├── pipeline.py          # Master orchestrator for end-to-end run
-│   └── visualize.py         # Streamlit visualizer dashboard
+│   ├── localize.py            # Stage 1: Bounding box region detection
+│   ├── classify.py            # Stage 2: OCR & part type classification
+│   ├── count_bends.py         # Stage 3: Bend line detection & counting
+│   ├── pipeline.py            # Master orchestrator for end-to-end run
+│   └── visualize.py           # Streamlit visualizer dashboard
 ├── configs/
-│   └── model_config.yaml    # Hyperparameters, confidence thresholds, hardware execution targets
+│   └── model_config.yaml      # Hyperparameters, confidence thresholds, hardware execution targets
 ├── prompts/
-│   ├── stage1_grounding.txt # Task prompts for visual grounding
-│   ├── stage2_ocr.txt       # Title block extraction prompts
-│   └── stage3_bends.txt     # Bend detection corroboration prompts
-├── reference_samples/       # PDF drawings (gitignored — keep files local)
-├── output/                  # Generated prediction JSONs and visualization artifacts
-│   ├── *_regions.json       # Stage 1 localized bounding boxes
-│   ├── *_classification.json# Stage 2 part classifications
-│   └── *_bends.json         # Stage 3 bend counts
+│   ├── stage1_grounding.txt   # Task prompts for visual grounding
+│   ├── stage2_ocr.txt         # Title block extraction prompts
+│   └── stage3_bends.txt       # Bend detection corroboration prompts
+├── reference_samples/         # PDF drawings (gitignored — keep files local)
+├── output/                    # Generated prediction JSONs and visualization artifacts
+│   ├── *_regions.json         # Stage 1 localized bounding boxes
+│   ├── *_classification.json  # Stage 2 part classifications
+│   └── *_bends.json           # Stage 3 bend counts
 ├── docs/
-│   └── model_rationale.md   # Latency, accuracy, and cost comparisons
-├── generate_all_samples.py  # Synthetic CAD drawing generator script
-├── run_batch.sh             # Shell script for batch running all reference drawings
-├── requirements.txt         # Project dependencies
-├── .env.example             # API keys and environment variables template
+│   └── model_rationale.md     # Latency, accuracy, and cost comparisons
+├── generate_all_samples.py    # Synthetic CAD drawing generator script
+├── run_batch.sh                # Shell script for batch running all reference drawings
+├── requirements.txt            # Project dependencies
+├── .env.example                 # API keys and environment variables template
 └── README.md
-
+```
 
 ---
 
 ## Setup & Installation
 
 ### Prerequisites
-* Python 3.10+
-* CUDA-capable GPU (recommended for local VLM inference with PyTorch)
+- Python 3.10+
+- CUDA-capable GPU (recommended for local VLM inference with PyTorch)
 
 ### Environment Configuration
 
 ```bash
 # Clone repository
-git clone [https://github.com/aai-labs/vlm-drawing-pipeline.git](https://github.com/aai-labs/vlm-drawing-pipeline.git)
+git clone https://github.com/aai-labs/vlm-drawing-pipeline.git
 cd vlm-drawing-pipeline
 
 # Initialize virtual environment
@@ -84,25 +103,31 @@ pip install -r requirements.txt
 
 # Setup environment variables
 cp .env.example .env
+```
 
-Execution Guide
-1. Generate Test Synthetic Drawings
+---
+
+## Execution Guide
+
+### 1. Generate Test Synthetic Drawings
 
 If testing without local PDF drawings, generate standard sample PDFs using matplotlib:
-Bash
 
+```bash
 python3 generate_all_samples.py
+```
 
-2. Run Pipeline Stages
+### 2. Run Pipeline Stages
 
-Run batch processing on all PDFs in reference_samples/:
-Bash
+Run batch processing on all PDFs in `reference_samples/`:
 
+```bash
 ./run_batch.sh
+```
 
 Run individual stages manually:
-Bash
 
+```bash
 # Stage 1: Region Localization
 python3 src/localize.py --input reference_samples/001_sample_bracket.pdf --out output/
 
@@ -111,20 +136,25 @@ python3 src/classify.py --input output/001_sample_bracket_regions.json --out out
 
 # Stage 3: Bend Counting
 python3 src/count_bends.py --input output/001_sample_bracket_classification.json --out output/
+```
 
-3. Visual Dashboard & Output Verification
+### 3. Visual Dashboard & Output Verification
 
 Inspect visual bounding box overlays and extraction predictions side-by-side:
-Bash
 
+```bash
 streamlit run src/visualize.py
+```
 
-Output Data Formats
+---
 
-Each stage produces structured JSON outputs in the output/ folder:
-Bounding Boxes (output/001_sample_bracket_regions.json)
-JSON
+## Output Data Formats
 
+Each stage produces structured JSON outputs in the `output/` folder.
+
+**Bounding Boxes** — `output/001_sample_bracket_regions.json`
+
+```json
 {
   "drawing_id": "001_sample_bracket",
   "regions": [
@@ -140,10 +170,11 @@ JSON
     }
   ]
 }
+```
 
-Classification Output (output/001_sample_bracket_classification.json)
-JSON
+**Classification Output** — `output/001_sample_bracket_classification.json`
 
+```json
 {
   "drawing_id": "001_sample_bracket",
   "part_class": "sheet",
@@ -154,10 +185,11 @@ JSON
     "thickness_mm": 2.0
   }
 }
+```
 
-Bend Count Output (output/001_sample_bracket_bends.json)
-JSON
+**Bend Count Output** — `output/001_sample_bracket_bends.json`
 
+```json
 {
   "drawing_id": "001_sample_bracket",
   "bend_count": 2,
@@ -166,15 +198,21 @@ JSON
     {"type": "down", "position_x": 215}
   ]
 }
+```
 
-Model Benchmark & Rationale
+---
 
-Detailed hardware, latency, and accuracy comparisons are available in docs/model_rationale.md.
+## Model Benchmark & Rationale
 
-    Local Model (microsoft/Florence-2-base): Zero API cost, ~240ms per drawing page on NVIDIA RTX 3090 / CUDA, low VRAM footprint (~1.2 GB).
+Detailed hardware, latency, and accuracy comparisons are available in `docs/model_rationale.md`.
 
-    Hybrid Approach (Qwen2.5-VL-7B / GPT-4o): Used as an auxiliary fallback for ambiguous German CAD abbreviations (Abwicklung, Rohr, Blech) in complex multi-page title blocks.
+| Approach | Model(s) | Cost | Latency | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Local** | `microsoft/Florence-2-base` | Zero API cost | ~240 ms / page (RTX 3090, CUDA) | Low VRAM footprint (~1.2 GB) |
+| **Hybrid** | `Qwen2.5-VL-7B` / `GPT-4o` | API cost | Higher | Auxiliary fallback for ambiguous German CAD abbreviations (`Abwicklung`, `Rohr`, `Blech`) in complex multi-page title blocks |
 
-Reproducibility
+---
 
-All pipeline runs use deterministic inference settings (temperature=0.0, fixed random seed 42) to guarantee identical bounding box predictions and text extractions across executions.
+## Reproducibility
+
+All pipeline runs use deterministic inference settings (`temperature=0.0`, fixed random seed `42`) to guarantee identical bounding box predictions and text extractions across executions.
