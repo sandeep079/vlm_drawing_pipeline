@@ -1,119 +1,104 @@
 """
-Stage 1 — Localize views and title block on a full-page drawing.
+Stage 1 — Localize views and title block using Florence-2-large (Local GPU).
 
 Usage:
     python src/localize.py --input reference_samples/ --out outputs/json/ --crops outputs/crops/
 """
 
 import argparse
-import base64
-import io
 import json
 import time
 from pathlib import Path
 
 import fitz  # PyMuPDF
-import requests
+import torch
 from PIL import Image
+from transformers import AutoModelForCausalLM, AutoProcessor
 
-OLLAMA_URL = "http://localhost:11434/api/chat"
-DEFAULT_MODEL = "qwen2.5vl:7b"
-PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "localize_prompt.txt"
+FLORENCE_MODEL_ID = "microsoft/Florence-2-large"
 
 
-def pdf_to_png_bytes(pdf_path: Path, dpi: int = 100, max_dim: int = 1024) -> tuple[bytes, Image.Image]:
-    """
-    Renders the first page of a PDF and resizes it so its longest dimension 
-    does not exceed max_dim. This drastically reduces token count and speeds up inference.
-    """
+def pdf_to_pil_image(pdf_path: Path, dpi: int = 150) -> Image.Image:
+    """Renders the first page of a PDF to a PIL Image at specified DPI."""
     doc = fitz.open(pdf_path)
     page = doc[0]
     zoom = dpi / 72.0
     mat = fitz.Matrix(zoom, zoom)
     pix = page.get_pixmap(matrix=mat)
-
-    img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
-    img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
-
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    return buffer.getvalue(), img
+    return Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
 
-def normalized_to_pixels(box_2d: list, img_width: int, img_height: int, pad_px: int = 15) -> tuple[int, int, int, int]:
-    """
-    Converts 0-1000 normalized coordinates [ymin, xmin, ymax, xmax]
-    to absolute pixel bounds [x0, y0, x1, y1] with margin padding.
-    """
-    ymin, xmin, ymax, xmax = box_2d
+def load_florence_model():
+    """Loads Florence-2 model in fp16 precision on CUDA."""
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    torch_dtype = torch.float16 if device == "cuda" else torch.float32
 
-    px0 = max(0, int(xmin / 1000.0 * img_width) - pad_px)
-    py0 = max(0, int(ymin / 1000.0 * img_height) - pad_px)
-    px1 = min(img_width, int(xmax / 1000.0 * img_width) + pad_px)
-    py1 = min(img_height, int(ymax / 1000.0 * img_height) + pad_px)
+    print(f"Loading {FLORENCE_MODEL_ID} on {device.upper()} ({torch_dtype})...")
+    model = AutoModelForCausalLM.from_pretrained(
+        FLORENCE_MODEL_ID,
+        trust_remote_code=True,
+        torch_dtype=torch_dtype,
+    ).to(device)
 
-    return px0, py0, px1, py1
+    processor = AutoProcessor.from_pretrained(
+        FLORENCE_MODEL_ID,
+        trust_remote_code=True
+    )
+
+    return model, processor, device
 
 
-def call_ollama_grounding(image_bytes: bytes, prompt: str, model_name: str = DEFAULT_MODEL) -> tuple[list, float]:
-    """Sends image and grounding prompt to local Ollama chat endpoint."""
-    b64_image = base64.b64encode(image_bytes).decode("utf-8")
+def run_florence_detection(image: Image.Image, model, processor, device) -> tuple[list, float]:
+    """Runs open-vocabulary detection for CAD drawing components."""
+    prompt = "<OPEN_VOCABULARY_DETECTION> title block. orthographic view. isometric view. section view. flat pattern."
 
-    payload = {
-        "model": model_name,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt,
-                "images": [b64_image],
-            }
-        ],
-        "format": "json",
-        "stream": False,
-        "options": {
-            "temperature": 0.0,
-        },
-    }
+    inputs = processor(text=prompt, images=image, return_tensors="pt")
+    inputs = {k: v.to(device) if torch.is_tensor(v) else v for k, v in inputs.items()}
+    if device == "cuda":
+        inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
 
     start = time.time()
-    try:
-        resp = requests.post(OLLAMA_URL, json=payload, timeout=300)
-        resp.raise_for_status()
-    except requests.exceptions.ConnectionError:
-        raise RuntimeError(
-            f"Could not connect to Ollama server at {OLLAMA_URL}. "
-            f"Ensure Ollama server is running (`ollama serve`)."
-        )
-    except requests.exceptions.ReadTimeout:
-        raise RuntimeError(
-            f"Ollama server timed out after 300s processing '{model_name}'."
+    with torch.no_grad():
+        generated_ids = model.generate(
+            input_ids=inputs["input_ids"],
+            pixel_values=inputs["pixel_values"],
+            max_new_tokens=1024,
+            num_beams=1,
+            do_sample=False,
         )
 
     elapsed = time.time() - start
-    data = resp.json()
-    raw_text = data.get("message", {}).get("content", "").strip()
 
-    cleaned = raw_text
-    if cleaned.startswith("```json"):
-        cleaned = cleaned[len("```json"):]
-    if cleaned.startswith("```"):
-        cleaned = cleaned[len("```"):]
-    if cleaned.endswith("```"):
-        cleaned = cleaned[:-len("```")]
-    cleaned = cleaned.strip()
+    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+    parsed_response = processor.post_process_generation(
+        generated_text,
+        task="<OPEN_VOCABULARY_DETECTION>",
+        image_size=(image.width, image.height),
+    )
 
-    try:
-        parsed = json.loads(cleaned)
-        if isinstance(parsed, dict):
-            boxes = parsed.get("regions", parsed.get("boxes", [parsed]))
-        elif isinstance(parsed, list):
-            boxes = parsed
-        else:
-            boxes = []
-    except json.JSONDecodeError:
-        boxes = [{"label": "PARSE_ERROR", "box_2d": [0, 0, 0, 0], "conf": 0.0, "raw": raw_text}]
+    detections = parsed_response.get("<OPEN_VOCABULARY_DETECTION>", {})
+    bboxes = detections.get("bboxes", [])
+    labels = detections.get("labels", [])
 
-    return boxes, round(elapsed, 2)
+    results = []
+    # Map raw detection labels to target schema labels
+    label_map = {
+        "title block": "title_block",
+        "orthographic view": "orthographic_view",
+        "isometric view": "isometric_view",
+        "section view": "section_view",
+        "flat pattern": "flat_pattern",
+    }
+
+    for bbox, label in zip(bboxes, labels):
+        clean_label = label_map.get(label.lower().strip(), label.replace(" ", "_"))
+        results.append({
+            "label": clean_label,
+            "box_pixel": [int(b) for b in bbox],  # [x0, y0, x1, y1]
+            "conf": 0.95,
+        })
+
+    return results, round(elapsed, 2)
 
 
 def main():
@@ -121,35 +106,26 @@ def main():
     parser.add_argument("--input", required=True, help="Folder of PDF drawings")
     parser.add_argument("--out", required=True, help="Folder to write box JSON")
     parser.add_argument("--crops", required=True, help="Folder to write cropped region PNGs")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="Ollama model name")
-    parser.add_argument("--dpi", type=int, default=100, help="PDF rendering DPI")
-    parser.add_argument("--max-dim", type=int, default=1024, help="Max width/height pixel dimension for Vision Model")
+    parser.add_argument("--dpi", type=int, default=150, help="PDF rendering DPI")
     args = parser.parse_args()
 
-    input_dir = Path(args.input)
-    out_dir = Path(args.out)
-    crops_dir = Path(args.crops)
+    input_dir, out_dir, crops_dir = Path(args.input), Path(args.out), Path(args.crops)
     out_dir.mkdir(parents=True, exist_ok=True)
     crops_dir.mkdir(parents=True, exist_ok=True)
 
-    if not PROMPT_PATH.exists():
-        raise FileNotFoundError(f"Prompt file not found at {PROMPT_PATH}")
-
-    prompt = PROMPT_PATH.read_text()
-
     pdf_files = sorted(input_dir.glob("*.pdf"))
     if not pdf_files:
-        print(f"No PDFs found in {input_dir}. Place your reference drawings there first.")
+        print(f"No PDFs found in {input_dir}.")
         return
 
-    for pdf_path in pdf_files:
-        print(f"Localizing {pdf_path.name} using model '{args.model}'...")
-        
-        # Render and downscale to max_dim (1024px) for fast inference
-        image_bytes, pil_image = pdf_to_png_bytes(pdf_path, dpi=args.dpi, max_dim=args.max_dim)
-        img_w, img_h = pil_image.size
+    model, processor, device = load_florence_model()
 
-        boxes, elapsed = call_ollama_grounding(image_bytes, prompt, model_name=args.model)
+    for pdf_path in pdf_files:
+        print(f"Localizing {pdf_path.name}...")
+        image = pdf_to_pil_image(pdf_path, dpi=args.dpi)
+        img_w, img_h = image.size
+
+        detections, elapsed = run_florence_detection(image, model, processor, device)
 
         drawing_id = pdf_path.stem
         result = {
@@ -158,25 +134,37 @@ def main():
             "image_height": img_h,
             "regions": [],
             "_latency_seconds": elapsed,
-            "_model": args.model,
+            "_model": FLORENCE_MODEL_ID,
         }
 
-        for i, box in enumerate(boxes):
-            label = box.get("label", "unknown")
-            conf = box.get("conf", 0.9)
-            box_2d = box.get("box_2d")
+        for i, det in enumerate(detections):
+            label = det["label"]
+            x0, y0, x1, y1 = det["box_pixel"]
 
-            region_entry = {"label": label, "conf": conf, "box_2d_normalized": box_2d}
+            # Clamp coordinates to image boundaries
+            x0, y0 = max(0, x0), max(0, y0)
+            x1, y1 = min(img_w, x1), min(img_h, y1)
 
-            if box_2d and len(box_2d) == 4:
-                px0, py0, px1, py1 = normalized_to_pixels(box_2d, img_w, img_h, pad_px=15)
-                region_entry["box_2d_pixels"] = [px0, py0, px1, py1]
+            # Convert to normalized 0-1000 [ymin, xmin, ymax, xmax]
+            norm_box = [
+                round((y0 / img_h) * 1000),
+                round((x0 / img_w) * 1000),
+                round((y1 / img_h) * 1000),
+                round((x1 / img_w) * 1000),
+            ]
 
-                if px1 > px0 and py1 > py0:
-                    crop = pil_image.crop((px0, py0, px1, py1))
-                    crop_filename = f"{drawing_id}_{label}_{i}.png"
-                    crop.save(crops_dir / crop_filename)
-                    region_entry["crop_file"] = crop_filename
+            region_entry = {
+                "label": label,
+                "conf": det["conf"],
+                "box_2d_normalized": norm_box,
+                "box_2d_pixels": [x0, y0, x1, y1],
+            }
+
+            if x1 > x0 and y1 > y0:
+                crop = image.crop((x0, y0, x1, y1))
+                crop_filename = f"{drawing_id}_{label}_{i}.png"
+                crop.save(crops_dir / crop_filename)
+                region_entry["crop_file"] = crop_filename
 
             result["regions"].append(region_entry)
 
@@ -185,7 +173,12 @@ def main():
 
         labels_found = [r["label"] for r in result["regions"]]
         print(f"  -> Found {len(labels_found)} regions in {elapsed}s: {labels_found}")
-        print(f"  -> Saved output to {out_path}")
+
+    # Free memory after Stage 1 finishes
+    del model
+    del processor
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
