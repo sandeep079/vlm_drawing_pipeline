@@ -75,7 +75,7 @@ vlm-drawing-pipeline/
 ├── generate_all_samples.py    # Synthetic CAD drawing generator script
 ├── run_batch.sh                # Shell script for batch running all reference drawings
 ├── requirements.txt            # Project dependencies
-├── .env.example                 # API keys and environment variables template
+├── .env               # API keys and environment variables template
 └── README.md
 ```
 
@@ -143,7 +143,7 @@ python3 src/count_bends.py --input output/001_sample_bracket_classification.json
 Inspect visual bounding box overlays and extraction predictions side-by-side:
 
 ```bash
-streamlit run src/visualize.py
+./script/visualize.py
 ```
 
 ---
