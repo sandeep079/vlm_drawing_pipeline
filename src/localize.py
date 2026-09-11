@@ -1,5 +1,5 @@
 """
-Stage 1 — Localize views and title block using Florence-2-large (Local GPU).
+Stage 1 — Localize drawing views and title block using local Florence-2-large.
 
 Usage:
     python src/localize.py --input reference_samples/ --out outputs/json/ --crops outputs/crops/
@@ -16,10 +16,20 @@ from PIL import Image
 from transformers import AutoModelForCausalLM, AutoProcessor
 
 FLORENCE_MODEL_ID = "microsoft/Florence-2-large"
+DETECTION_PROMPT = "<OPEN_VOCABULARY_DETECTION> title block. orthographic view. isometric view. section view. flat pattern."
+
+# Map raw detection labels to standard pipeline schema
+LABEL_MAP = {
+    "title block": "title_block",
+    "orthographic view": "orthographic_view",
+    "isometric view": "isometric_view",
+    "section view": "section_view",
+    "flat pattern": "flat_pattern",
+}
 
 
 def pdf_to_pil_image(pdf_path: Path, dpi: int = 150) -> Image.Image:
-    """Renders the first page of a PDF to a PIL Image at specified DPI."""
+    """Render page 1 of a PDF drawing to a PIL RGB Image."""
     doc = fitz.open(pdf_path)
     page = doc[0]
     zoom = dpi / 72.0
@@ -28,8 +38,17 @@ def pdf_to_pil_image(pdf_path: Path, dpi: int = 150) -> Image.Image:
     return Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
 
+def box_is_sane(px0: int, py0: int, px1: int, py1: int, img_w: int, img_h: int) -> bool:
+    """Reject inverted, zero-area, or out-of-bounds bounding boxes."""
+    if px1 <= px0 or py1 <= py0:
+        return False
+    if px0 < -5 or py0 < -5 or px1 > img_w + 5 or py1 > img_h + 5:
+        return False
+    return True
+
+
 def load_florence_model():
-    """Loads Florence-2 model in fp16 precision on CUDA."""
+    """Load Florence-2 model and processor onto GPU with float16 precision."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if device == "cuda" else torch.float32
 
@@ -49,10 +68,8 @@ def load_florence_model():
 
 
 def run_florence_detection(image: Image.Image, model, processor, device) -> tuple[list, float]:
-    """Runs open-vocabulary detection for CAD drawing components."""
-    prompt = "<OPEN_VOCABULARY_DETECTION> title block. orthographic view. isometric view. section view. flat pattern."
-
-    inputs = processor(text=prompt, images=image, return_tensors="pt")
+    """Run object detection for target CAD regions using Florence-2."""
+    inputs = processor(text=DETECTION_PROMPT, images=image, return_tensors="pt")
     inputs = {k: v.to(device) if torch.is_tensor(v) else v for k, v in inputs.items()}
     if device == "cuda":
         inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
@@ -81,17 +98,8 @@ def run_florence_detection(image: Image.Image, model, processor, device) -> tupl
     labels = detections.get("labels", [])
 
     results = []
-    # Map raw detection labels to target schema labels
-    label_map = {
-        "title block": "title_block",
-        "orthographic view": "orthographic_view",
-        "isometric view": "isometric_view",
-        "section view": "section_view",
-        "flat pattern": "flat_pattern",
-    }
-
     for bbox, label in zip(bboxes, labels):
-        clean_label = label_map.get(label.lower().strip(), label.replace(" ", "_"))
+        clean_label = LABEL_MAP.get(label.lower().strip(), label.replace(" ", "_"))
         results.append({
             "label": clean_label,
             "box_pixel": [int(b) for b in bbox],  # [x0, y0, x1, y1]
@@ -109,7 +117,9 @@ def main():
     parser.add_argument("--dpi", type=int, default=150, help="PDF rendering DPI")
     args = parser.parse_args()
 
-    input_dir, out_dir, crops_dir = Path(args.input), Path(args.out), Path(args.crops)
+    input_dir = Path(args.input)
+    out_dir = Path(args.out)
+    crops_dir = Path(args.crops)
     out_dir.mkdir(parents=True, exist_ok=True)
     crops_dir.mkdir(parents=True, exist_ok=True)
 
@@ -121,13 +131,14 @@ def main():
     model, processor, device = load_florence_model()
 
     for pdf_path in pdf_files:
-        print(f"Localizing {pdf_path.name}...")
+        drawing_id = pdf_path.stem
+        print(f"Localizing {pdf_path.name} ...")
+
         image = pdf_to_pil_image(pdf_path, dpi=args.dpi)
         img_w, img_h = image.size
 
         detections, elapsed = run_florence_detection(image, model, processor, device)
 
-        drawing_id = pdf_path.stem
         result = {
             "drawing_id": drawing_id,
             "image_width": img_w,
@@ -139,32 +150,43 @@ def main():
 
         for i, det in enumerate(detections):
             label = det["label"]
-            x0, y0, x1, y1 = det["box_pixel"]
+            conf = det["conf"]
+            px0, py0, px1, py1 = det["box_pixel"]
+
+            # Sanity check box coordinates before processing
+            if not box_is_sane(px0, py0, px1, py1, img_w, img_h):
+                region_entry = {
+                    "label": label,
+                    "conf": conf,
+                    "flag": "box_out_of_bounds_or_invalid_skipped_crop",
+                }
+                result["regions"].append(region_entry)
+                print(f"  WARNING: skipped invalid box for '{label}': pixels=({px0},{py0},{px1},{py1})")
+                continue
 
             # Clamp coordinates to image boundaries
-            x0, y0 = max(0, x0), max(0, y0)
-            x1, y1 = min(img_w, x1), min(img_h, y1)
+            px0, py0 = max(0, px0), max(0, py0)
+            px1, py1 = min(img_w, px1), min(img_h, py1)
 
-            # Convert to normalized 0-1000 [ymin, xmin, ymax, xmax]
+            # Convert to normalized 0-1000 scale [x0, y0, x1, y1] for schema consistency
             norm_box = [
-                round((y0 / img_h) * 1000),
-                round((x0 / img_w) * 1000),
-                round((y1 / img_h) * 1000),
-                round((x1 / img_w) * 1000),
+                round((px0 / img_w) * 1000),
+                round((py0 / img_h) * 1000),
+                round((px1 / img_w) * 1000),
+                round((py1 / img_h) * 1000),
             ]
 
             region_entry = {
                 "label": label,
-                "conf": det["conf"],
+                "conf": conf,
                 "box_2d_normalized": norm_box,
-                "box_2d_pixels": [x0, y0, x1, y1],
+                "box_2d_pixels": [px0, py0, px1, py1],
             }
 
-            if x1 > x0 and y1 > y0:
-                crop = image.crop((x0, y0, x1, y1))
-                crop_filename = f"{drawing_id}_{label}_{i}.png"
-                crop.save(crops_dir / crop_filename)
-                region_entry["crop_file"] = crop_filename
+            crop = image.crop((px0, py0, px1, py1))
+            crop_filename = f"{drawing_id}_{label}_{i}.png"
+            crop.save(crops_dir / crop_filename)
+            region_entry["crop_file"] = crop_filename
 
             result["regions"].append(region_entry)
 
@@ -172,9 +194,10 @@ def main():
         out_path.write_text(json.dumps(result, indent=2))
 
         labels_found = [r["label"] for r in result["regions"]]
-        print(f"  -> Found {len(labels_found)} regions in {elapsed}s: {labels_found}")
+        print(f"  -> found {len(labels_found)} regions: {labels_found} ({elapsed}s)")
+        print(f"  -> saved to {out_path}")
 
-    # Free memory after Stage 1 finishes
+    # Free CUDA memory after Stage 1 processing completes
     del model
     del processor
     if torch.cuda.is_available():

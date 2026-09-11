@@ -1,87 +1,68 @@
 """
-Stage 2 — Sheet vs. Tube classification.
+Stage 2 — Sheet vs. Tube classification using local Ollama (qwen2-vl:2b).
 
 Usage:
     python src/classify.py --input reference_samples/ --out outputs/json/
-
-Requires OPENROUTER_API_KEY set in .env (see .env.example).
-Converts each PDF in --input to a PNG, sends it + the classification prompt
-to Qwen2.5-VL via OpenRouter, and writes one JSON result per drawing.
 """
 
 import argparse
 import base64
 import json
-import os
 import time
 from pathlib import Path
 
-import fitz  # pymupdf
+import fitz  # PyMuPDF
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
-
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL_ID = "qwen/qwen2.5-vl-72b-instruct"  # $0.10/M in, $0.40/M out on OpenRouter
-# Free tier for testing (rate-limited, may be lower quality): "qwen/qwen2.5-vl-72b-instruct:free"
-
+OLLAMA_URL = "http://localhost:11434/api/chat"
+DEFAULT_MODEL = "qwen2.5vl:3b"
 PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "classify_prompt.txt"
 
 
-def pdf_to_png_bytes(pdf_path: Path, dpi: int = 300) -> bytes:
-    """Render page 1 of a single-part PDF drawing to PNG bytes."""
+def pdf_to_png_bytes(pdf_path: Path, dpi: int = 200) -> bytes:
+    """Render page 1 of a PDF drawing to PNG bytes."""
     doc = fitz.open(pdf_path)
     page = doc[0]
-    zoom = dpi / 72  # PDF base is 72 DPI
+    zoom = dpi / 72.0
     mat = fitz.Matrix(zoom, zoom)
     pix = page.get_pixmap(matrix=mat)
     return pix.tobytes("png")
 
 
-def classify_drawing(image_bytes: bytes, prompt: str) -> dict:
-    """Send one drawing image + prompt to Qwen2.5-VL via OpenRouter, return parsed JSON."""
-    if not OPENROUTER_API_KEY:
-        raise RuntimeError(
-            "OPENROUTER_API_KEY not set. Copy .env.example to .env and fill it in."
-        )
-
+def classify_drawing(image_bytes: bytes, prompt: str, model_name: str = DEFAULT_MODEL) -> dict:
+    """Send image and classification prompt directly to local Ollama chat endpoint."""
     b64_image = base64.b64encode(image_bytes).decode("utf-8")
 
     payload = {
-        "model": MODEL_ID,
-        "temperature": 0,
-        "max_tokens": 512,
+        "model": model_name,
         "messages": [
             {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{b64_image}"},
-                    },
-                ],
+                "content": prompt,
+                "images": [b64_image],
             }
         ],
-    }
-
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
+        "format": "json",
+        "stream": False,
+        "options": {
+            "temperature": 0.0,
+        },
     }
 
     start = time.time()
-    resp = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
+    try:
+        resp = requests.post(OLLAMA_URL, json=payload, timeout=120)
+        resp.raise_for_status()
+    except requests.exceptions.ConnectionError:
+        raise RuntimeError(
+            f"Could not connect to Ollama at {OLLAMA_URL}. Ensure Ollama is running (`ollama serve`)."
+        )
+
     elapsed = time.time() - start
-    resp.raise_for_status()
-
     data = resp.json()
-    raw_text = data["choices"][0]["message"]["content"]
+    raw_text = data.get("message", {}).get("content", "").strip()
 
-    # Strip accidental markdown fences before parsing
-    cleaned = raw_text.strip()
+    cleaned = raw_text
     if cleaned.startswith("```json"):
         cleaned = cleaned[len("```json"):]
     if cleaned.startswith("```"):
@@ -93,10 +74,14 @@ def classify_drawing(image_bytes: bytes, prompt: str) -> dict:
     try:
         result = json.loads(cleaned)
     except json.JSONDecodeError:
-        result = {"class": None, "class_confidence": 0.0, "class_evidence": f"PARSE_ERROR: {raw_text}"}
+        result = {
+            "class": "unknown",
+            "class_confidence": 0.0,
+            "class_evidence": f"PARSE_ERROR: {raw_text}",
+        }
 
     result["_latency_seconds"] = round(elapsed, 2)
-    result["_model"] = MODEL_ID
+    result["_model"] = model_name
     return result
 
 
@@ -104,31 +89,38 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, help="Folder of PDF drawings")
     parser.add_argument("--out", required=True, help="Folder to write JSON results")
+    parser.add_argument("--model", default=DEFAULT_MODEL, help="Ollama model name")
+    parser.add_argument("--dpi", type=int, default=200, help="PDF rendering DPI")
     args = parser.parse_args()
 
     input_dir = Path(args.input)
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    if not PROMPT_PATH.exists():
+        raise FileNotFoundError(f"Prompt file missing at {PROMPT_PATH}")
+
     prompt = PROMPT_PATH.read_text()
 
     pdf_files = sorted(input_dir.glob("*.pdf"))
     if not pdf_files:
-        print(f"No PDFs found in {input_dir}. Place your reference drawings there first.")
+        print(f"No PDFs found in {input_dir}.")
         return
 
     for pdf_path in pdf_files:
-        print(f"Classifying {pdf_path.name} ...")
-        image_bytes = pdf_to_png_bytes(pdf_path)
-        result = classify_drawing(image_bytes, prompt)
+        print(f"Classifying {pdf_path.name} using '{args.model}'...")
+        image_bytes = pdf_to_png_bytes(pdf_path, dpi=args.dpi)
+        
+        result = classify_drawing(image_bytes, prompt, model_name=args.model)
         result["drawing_id"] = pdf_path.stem
 
-        time.sleep(10)
-        
         out_path = out_dir / f"{pdf_path.stem}_classification.json"
         out_path.write_text(json.dumps(result, indent=2))
-        print(f"  -> {result.get('class')} (conf={result.get('class_confidence')}, "
-              f"{result.get('_latency_seconds')}s) saved to {out_path}")
+
+        print(
+            f"  -> Class: {result.get('class')} "
+            f"(conf={result.get('class_confidence')}, {result.get('_latency_seconds')}s)"
+        )
 
 
 if __name__ == "__main__":
