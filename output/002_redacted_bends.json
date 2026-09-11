@@ -1,0 +1,9 @@
+{
+  "drawing_id": "002_redacted",
+  "num_bends": 0,
+  "bend_confidence": 0.96,
+  "bend_evidence": "Flat plate/bar geometry; chamfers or stepped outline cuts excluded",
+  "flags": [
+    "corner_chamfers_ignored"
+  ]
+}

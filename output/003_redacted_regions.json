@@ -1,0 +1,55 @@
+{
+  "drawing_id": "003_redacted",
+  "regions": [
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        604,
+        843,
+        1226,
+        1215
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        705,
+        1878,
+        1924,
+        2625
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        604,
+        847,
+        1231,
+        1222
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        1529,
+        815,
+        2035,
+        1268
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        604,
+        843,
+        1231,
+        1229
+      ],
+      "conf": 0.92
+    }
+  ]
+}

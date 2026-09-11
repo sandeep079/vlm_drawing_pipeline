@@ -1,0 +1,42 @@
+{
+  "drawing_id": "003_redacted",
+  "regions": [
+    {
+      "type": "title_block",
+      "bbox": [
+        1529,
+        815,
+        2035,
+        1268
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        604,
+        843,
+        1226,
+        1215
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        705,
+        1878,
+        1924,
+        2625
+      ],
+      "conf": 0.92
+    }
+  ],
+  "class": "tube",
+  "class_confidence": 0.99,
+  "class_evidence": "Hollow constant section detected; title keywords match tube/profile",
+  "num_bends": "n/a",
+  "bend_confidence": 1.0,
+  "bend_evidence": "Part is tube class (no sheet bending process)",
+  "flags": []
+}

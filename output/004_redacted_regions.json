@@ -1,0 +1,45 @@
+{
+  "drawing_id": "004_redacted",
+  "regions": [
+    {
+      "type": "orthographic_view",
+      "bbox": [
+        651,
+        619,
+        2085,
+        1531
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        651,
+        626,
+        2082,
+        1531
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "section_view",
+      "bbox": [
+        656,
+        955,
+        2080,
+        1527
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        651,
+        622,
+        2080,
+        1527
+      ],
+      "conf": 0.92
+    }
+  ]
+}

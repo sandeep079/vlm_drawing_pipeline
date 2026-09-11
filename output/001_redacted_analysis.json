@@ -1,0 +1,42 @@
+{
+  "drawing_id": "001_redacted",
+  "regions": [
+    {
+      "type": "section_view",
+      "bbox": [
+        3951,
+        1969,
+        4784,
+        2646
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        1242,
+        513,
+        3653,
+        1369
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        1984,
+        2104,
+        4961,
+        3508
+      ],
+      "conf": 0.85
+    }
+  ],
+  "class": "sheet",
+  "class_confidence": 0.98,
+  "class_evidence": "Blechdicke/sheet thickness standard; Part description matches sheet metal",
+  "num_bends": 2,
+  "bend_confidence": 0.95,
+  "bend_evidence": "Abwicklung present; U-channel side profile = 3 segments -> 2 folds",
+  "flags": []
+}

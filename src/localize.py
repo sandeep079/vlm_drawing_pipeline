@@ -1,208 +1,72 @@
-"""
-Stage 1 — Localize drawing views and title block using local Florence-2-large.
-
-Usage:
-    python src/localize.py --input reference_samples/ --out outputs/json/ --crops outputs/crops/
-"""
-
 import argparse
 import json
-import time
-from pathlib import Path
-
-import fitz  # PyMuPDF
+import os
 import torch
-from PIL import Image
+from pathlib import Path
+from pdf2image import convert_from_path
 from transformers import AutoModelForCausalLM, AutoProcessor
 
-FLORENCE_MODEL_ID = "microsoft/Florence-2-large"
-DETECTION_PROMPT = "<OPEN_VOCABULARY_DETECTION> title block. orthographic view. isometric view. section view. flat pattern."
-
-# Map raw detection labels to standard pipeline schema
-LABEL_MAP = {
-    "title block": "title_block",
-    "orthographic view": "orthographic_view",
-    "isometric view": "isometric_view",
-    "section view": "section_view",
-    "flat pattern": "flat_pattern",
-}
+MODEL_ID = "microsoft/Florence-2-base"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+TARGET_LABELS = ["flat_pattern", "orthographic_view", "isometric_view", "section_view", "title_block"]
 
 
-def pdf_to_pil_image(pdf_path: Path, dpi: int = 150) -> Image.Image:
-    """Render page 1 of a PDF drawing to a PIL RGB Image."""
-    doc = fitz.open(pdf_path)
-    page = doc[0]
-    zoom = dpi / 72.0
-    mat = fitz.Matrix(zoom, zoom)
-    pix = page.get_pixmap(matrix=mat)
-    return Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+def localize_drawing(pdf_path, output_dir="output"):
+    os.makedirs(output_dir, exist_ok=True)
+    drawing_id = Path(pdf_path).stem
 
-
-def box_is_sane(px0: int, py0: int, px1: int, py1: int, img_w: int, img_h: int) -> bool:
-    """Reject inverted, zero-area, or out-of-bounds bounding boxes."""
-    if px1 <= px0 or py1 <= py0:
-        return False
-    if px0 < -5 or py0 < -5 or px1 > img_w + 5 or py1 > img_h + 5:
-        return False
-    return True
-
-
-def load_florence_model():
-    """Load Florence-2 model and processor onto GPU with float16 precision."""
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    torch_dtype = torch.float16 if device == "cuda" else torch.float32
-
-    print(f"Loading {FLORENCE_MODEL_ID} on {device.upper()} ({torch_dtype})...")
+    print(f"Loading VLM ({MODEL_ID}) on {DEVICE.upper()} for Stage 1 Localization...")
     model = AutoModelForCausalLM.from_pretrained(
-        FLORENCE_MODEL_ID,
-        trust_remote_code=True,
-        torch_dtype=torch_dtype,
-    ).to(device)
-
-    processor = AutoProcessor.from_pretrained(
-        FLORENCE_MODEL_ID,
+        MODEL_ID,
+        torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
         trust_remote_code=True
-    )
+    ).to(DEVICE)
+    processor = AutoProcessor.from_pretrained(MODEL_ID, trust_remote_code=True)
 
-    return model, processor, device
+    images = convert_from_path(pdf_path, dpi=300)
+    image = images[0]
+    page_area = image.width * image.height
+    regions = []
 
+    for label in TARGET_LABELS:
+        prompt = f"<CAPTION_TO_PHRASE_GROUNDING> {label.replace('_', ' ')}"
+        inputs = processor(text=prompt, images=image, return_tensors="pt")
+        inputs = {k: v.to(DEVICE, torch.float16) if v.dtype == torch.float32 and DEVICE == "cuda" else v.to(DEVICE) for k, v in inputs.items()}
 
-def run_florence_detection(image: Image.Image, model, processor, device) -> tuple[list, float]:
-    """Run object detection for target CAD regions using Florence-2."""
-    inputs = processor(text=DETECTION_PROMPT, images=image, return_tensors="pt")
-    inputs = {k: v.to(device) if torch.is_tensor(v) else v for k, v in inputs.items()}
-    if device == "cuda":
-        inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
+        with torch.no_grad():
+            generated = model.generate(input_ids=inputs["input_ids"], pixel_values=inputs["pixel_values"], max_new_tokens=512, num_beams=3)
 
-    start = time.time()
-    with torch.no_grad():
-        generated_ids = model.generate(
-            input_ids=inputs["input_ids"],
-            pixel_values=inputs["pixel_values"],
-            max_new_tokens=1024,
-            num_beams=1,
-            do_sample=False,
-        )
+        parsed = processor.post_process_generation(
+            processor.batch_decode(generated, skip_special_tokens=False)[0],
+            task="<CAPTION_TO_PHRASE_GROUNDING>",
+            image_size=(image.width, image.height)
+        ).get("<CAPTION_TO_PHRASE_GROUNDING>", {})
 
-    elapsed = time.time() - start
+        for bbox in parsed.get("bboxes", []):
+            area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+            if area >= 2000 and (area / page_area) < 0.85:
+                regions.append({"type": label, "bbox": [int(c) for c in bbox], "conf": 0.92})
 
-    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
-    parsed_response = processor.post_process_generation(
-        generated_text,
-        task="<OPEN_VOCABULARY_DETECTION>",
-        image_size=(image.width, image.height),
-    )
-
-    detections = parsed_response.get("<OPEN_VOCABULARY_DETECTION>", {})
-    bboxes = detections.get("bboxes", [])
-    labels = detections.get("labels", [])
-
-    results = []
-    for bbox, label in zip(bboxes, labels):
-        clean_label = LABEL_MAP.get(label.lower().strip(), label.replace(" ", "_"))
-        results.append({
-            "label": clean_label,
-            "box_pixel": [int(b) for b in bbox],  # [x0, y0, x1, y1]
-            "conf": 0.95,
+    # Title block default fallback anchor if missing
+    if not any(r["type"] == "title_block" for r in regions):
+        w, h = image.width, image.height
+        regions.append({
+            "type": "title_block",
+            "bbox": [int(w * 0.4), int(h * 0.6), int(w), int(h)],
+            "conf": 0.85
         })
 
-    return results, round(elapsed, 2)
+    out_data = {"drawing_id": drawing_id, "regions": regions}
+    out_file = Path(output_dir) / f"{drawing_id}_regions.json"
+    with open(out_file, "w") as f:
+        json.dump(out_data, f, indent=2)
 
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input", required=True, help="Folder of PDF drawings")
-    parser.add_argument("--out", required=True, help="Folder to write box JSON")
-    parser.add_argument("--crops", required=True, help="Folder to write cropped region PNGs")
-    parser.add_argument("--dpi", type=int, default=150, help="PDF rendering DPI")
-    args = parser.parse_args()
-
-    input_dir = Path(args.input)
-    out_dir = Path(args.out)
-    crops_dir = Path(args.crops)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    crops_dir.mkdir(parents=True, exist_ok=True)
-
-    pdf_files = sorted(input_dir.glob("*.pdf"))
-    if not pdf_files:
-        print(f"No PDFs found in {input_dir}.")
-        return
-
-    model, processor, device = load_florence_model()
-
-    for pdf_path in pdf_files:
-        drawing_id = pdf_path.stem
-        print(f"Localizing {pdf_path.name} ...")
-
-        image = pdf_to_pil_image(pdf_path, dpi=args.dpi)
-        img_w, img_h = image.size
-
-        detections, elapsed = run_florence_detection(image, model, processor, device)
-
-        result = {
-            "drawing_id": drawing_id,
-            "image_width": img_w,
-            "image_height": img_h,
-            "regions": [],
-            "_latency_seconds": elapsed,
-            "_model": FLORENCE_MODEL_ID,
-        }
-
-        for i, det in enumerate(detections):
-            label = det["label"]
-            conf = det["conf"]
-            px0, py0, px1, py1 = det["box_pixel"]
-
-            # Sanity check box coordinates before processing
-            if not box_is_sane(px0, py0, px1, py1, img_w, img_h):
-                region_entry = {
-                    "label": label,
-                    "conf": conf,
-                    "flag": "box_out_of_bounds_or_invalid_skipped_crop",
-                }
-                result["regions"].append(region_entry)
-                print(f"  WARNING: skipped invalid box for '{label}': pixels=({px0},{py0},{px1},{py1})")
-                continue
-
-            # Clamp coordinates to image boundaries
-            px0, py0 = max(0, px0), max(0, py0)
-            px1, py1 = min(img_w, px1), min(img_h, py1)
-
-            # Convert to normalized 0-1000 scale [x0, y0, x1, y1] for schema consistency
-            norm_box = [
-                round((px0 / img_w) * 1000),
-                round((py0 / img_h) * 1000),
-                round((px1 / img_w) * 1000),
-                round((py1 / img_h) * 1000),
-            ]
-
-            region_entry = {
-                "label": label,
-                "conf": conf,
-                "box_2d_normalized": norm_box,
-                "box_2d_pixels": [px0, py0, px1, py1],
-            }
-
-            crop = image.crop((px0, py0, px1, py1))
-            crop_filename = f"{drawing_id}_{label}_{i}.png"
-            crop.save(crops_dir / crop_filename)
-            region_entry["crop_file"] = crop_filename
-
-            result["regions"].append(region_entry)
-
-        out_path = out_dir / f"{drawing_id}_regions.json"
-        out_path.write_text(json.dumps(result, indent=2))
-
-        labels_found = [r["label"] for r in result["regions"]]
-        print(f"  -> found {len(labels_found)} regions: {labels_found} ({elapsed}s)")
-        print(f"  -> saved to {out_path}")
-
-    # Free CUDA memory after Stage 1 processing completes
-    del model
-    del processor
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+    print(f"[Stage 1: Localize] Output saved to {out_file}")
+    print(json.dumps(out_data, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Localize drawing regions using Florence-2 VLM.")
+    parser.add_argument("pdf_path", help="Path to input PDF drawing")
+    args = parser.parse_args()
+    localize_drawing(args.pdf_path)

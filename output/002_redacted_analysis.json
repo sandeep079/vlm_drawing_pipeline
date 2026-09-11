@@ -1,0 +1,44 @@
+{
+  "drawing_id": "002_redacted",
+  "regions": [
+    {
+      "type": "title_block",
+      "bbox": [
+        1340,
+        443,
+        1641,
+        513
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "flat_pattern",
+      "bbox": [
+        497,
+        612,
+        1303,
+        2345
+      ],
+      "conf": 0.92
+    },
+    {
+      "type": "title_block",
+      "bbox": [
+        470,
+        454,
+        1983,
+        2355
+      ],
+      "conf": 0.92
+    }
+  ],
+  "class": "sheet",
+  "class_confidence": 0.98,
+  "class_evidence": "Part description matches sheet metal",
+  "num_bends": 0,
+  "bend_confidence": 0.96,
+  "bend_evidence": "Flat plate/bar geometry; chamfers or stepped outline cuts excluded",
+  "flags": [
+    "corner_chamfers_ignored"
+  ]
+}
