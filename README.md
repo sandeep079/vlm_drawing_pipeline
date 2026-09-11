@@ -30,9 +30,9 @@ flowchart LR
 
 | Stage | Name | Model | Purpose | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Stage 1** | **Localize** | Florence-2-base | Grounding model locates `flat_pattern`, `orthographic_view`, `isometric_view`, `section_view`, and `title_block` regions with bounding boxes. | ✅ Completed |
-| **Stage 2** | **Classify** | Florence-2 / Qwen2.5-VL | Extracts title block text and region crops to classify part type (`sheet` vs. `tube`). | ✅ Completed |
-| **Stage 3** | **Count Bends** | Florence-2 / VLM | Detects fold/bend lines in flat pattern views corroborated by side and isometric projections. | ✅ Completed |
+| **Stage 1** | **Localize** | Florence-2-base | Grounding model locates `flat_pattern`, `orthographic_view`, `isometric_view`, `section_view`, and `title_block` regions with bounding boxes. |  Completed |
+| **Stage 2** | **Classify** | Florence-2 / Qwen2.5-VL | Extracts title block text and region crops to classify part type (`sheet` vs. `tube`). |  Completed |
+| **Stage 3** | **Count Bends** | Florence-2 / VLM | Detects fold/bend lines in flat pattern views corroborated by side and isometric projections. |  Completed |
 
 ---
 
