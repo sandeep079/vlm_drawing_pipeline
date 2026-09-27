@@ -30,9 +30,9 @@ flowchart LR
 
 | Stage | Name | Model | Purpose | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Stage 1** | **Localize** | Florence-2-base | Grounding model locates `flat_pattern`, `orthographic_view`, `isometric_view`, `section_view`, and `title_block` regions with bounding boxes. | ✅ Completed |
-| **Stage 2** | **Classify** | Florence-2 / Qwen2.5-VL | Extracts title block text and region crops to classify part type (`sheet` vs. `tube`). | ✅ Completed |
-| **Stage 3** | **Count Bends** | Florence-2 / VLM | Detects fold/bend lines in flat pattern views corroborated by side and isometric projections. | ✅ Completed |
+| **Stage 1** | **Localize** | Florence-2-base | Grounding model locates `flat_pattern`, `orthographic_view`, `isometric_view`, `section_view`, and `title_block` regions with bounding boxes. |  Completed |
+| **Stage 2** | **Classify** | Florence-2 / Qwen2.5-VL | Extracts title block text and region crops to classify part type (`sheet` vs. `tube`). |  Completed |
+| **Stage 3** | **Count Bends** | Florence-2 / VLM | Detects fold/bend lines in flat pattern views corroborated by side and isometric projections. |  Completed |
 
 ---
 
@@ -75,7 +75,7 @@ vlm-drawing-pipeline/
 ├── generate_all_samples.py    # Synthetic CAD drawing generator script
 ├── run_batch.sh                # Shell script for batch running all reference drawings
 ├── requirements.txt            # Project dependencies
-├── .env.example                 # API keys and environment variables template
+├── .env               # API keys and environment variables template
 └── README.md
 ```
 
@@ -143,7 +143,7 @@ python3 src/count_bends.py --input output/001_sample_bracket_classification.json
 Inspect visual bounding box overlays and extraction predictions side-by-side:
 
 ```bash
-streamlit run src/visualize.py
+./script/visualize.py
 ```
 
 ---
