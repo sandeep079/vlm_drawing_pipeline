@@ -1,0 +1,27 @@
+{
+  "drawing_id": "004_redacted",
+  "regions": [
+    {
+      "label": "flat_pattern",
+      "box_2d": [
+        656,
+        959,
+        2077,
+        1524
+      ],
+      "source": "florence2",
+      "crop": "output/004_redacted_flat_pattern_0.png"
+    },
+    {
+      "label": "title_block",
+      "box_2d": [
+        1364,
+        2345,
+        2397,
+        3429
+      ],
+      "source": "layout_detection",
+      "crop": "output/004_redacted_title_block_0.png"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "drawing_id": "001_redacted",
+  "regions": [
+    {
+      "label": "flat_pattern",
+      "box_2d": [
+        3956,
+        1969,
+        4789,
+        2643
+      ],
+      "source": "florence2",
+      "crop": "output/001_redacted_flat_pattern_0.png"
+    },
+    {
+      "label": "projection_view",
+      "box_2d": [
+        1227,
+        510,
+        3658,
+        1380
+      ],
+      "source": "florence2",
+      "crop": "output/001_redacted_projection_view_0.png"
+    },
+    {
+      "label": "title_block",
+      "box_2d": [
+        2728,
+        2280,
+        4877,
+        3430
+      ],
+      "source": "layout_detection",
+      "crop": "output/001_redacted_title_block_0.png"
+    }
+  ]
+}

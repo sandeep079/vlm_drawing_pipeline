@@ -1,0 +1,14 @@
+{
+  "drawing_id": "001_redacted",
+  "num_bends": 2,
+  "counting_method": "sheet_metal_bracket_geometry",
+  "bend_evidence": {
+    "abwicklung": true,
+    "bend_keyword": false,
+    "bend_angle_detected": false,
+    "bend_radius_detected": true,
+    "sheet_thickness_detected": true,
+    "bracket_keyword": true
+  },
+  "flags": []
+}

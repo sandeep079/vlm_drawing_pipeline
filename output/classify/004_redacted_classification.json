@@ -1,0 +1,19 @@
+{
+  "drawing_id": "004_redacted",
+  "class": "sheet",
+  "classification_method": "native_pdf_text_plus_florence2_ocr",
+  "class_evidence": {
+    "sheet_keywords": [
+      "PLATE",
+      "ADAPTER"
+    ],
+    "tube_keywords": [],
+    "material_keywords": [
+      "1.0038"
+    ],
+    "sheet_thickness_detected": false,
+    "tube_dimension_detected": false,
+    "sheet_evidence_score": 7,
+    "tube_evidence_score": 0
+  }
+}

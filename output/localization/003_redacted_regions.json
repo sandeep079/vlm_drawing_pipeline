@@ -1,0 +1,38 @@
+{
+  "drawing_id": "003_redacted",
+  "regions": [
+    {
+      "label": "flat_pattern",
+      "box_2d": [
+        604,
+        847,
+        1226,
+        1215
+      ],
+      "source": "florence2",
+      "crop": "output/003_redacted_flat_pattern_0.png"
+    },
+    {
+      "label": "isometric_view",
+      "box_2d": [
+        1522,
+        812,
+        2038,
+        1275
+      ],
+      "source": "florence2",
+      "crop": "output/003_redacted_isometric_view_0.png"
+    },
+    {
+      "label": "title_block",
+      "box_2d": [
+        1364,
+        2427,
+        2397,
+        3429
+      ],
+      "source": "layout_detection",
+      "crop": "output/003_redacted_title_block_0.png"
+    }
+  ]
+}

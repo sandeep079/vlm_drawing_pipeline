@@ -1,0 +1,19 @@
+{
+  "drawing_id": "003_redacted",
+  "class": "tube",
+  "classification_method": "native_pdf_text_plus_florence2_ocr",
+  "class_evidence": {
+    "sheet_keywords": [],
+    "tube_keywords": [
+      "SQUARE TUBE",
+      "TUBE"
+    ],
+    "material_keywords": [
+      "1.0038"
+    ],
+    "sheet_thickness_detected": false,
+    "tube_dimension_detected": true,
+    "sheet_evidence_score": 1,
+    "tube_evidence_score": 8
+  }
+}

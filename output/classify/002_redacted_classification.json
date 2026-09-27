@@ -1,0 +1,18 @@
+{
+  "drawing_id": "002_redacted",
+  "class": "sheet",
+  "classification_method": "native_pdf_text_plus_florence2_ocr",
+  "class_evidence": {
+    "sheet_keywords": [
+      "PLATE"
+    ],
+    "tube_keywords": [],
+    "material_keywords": [
+      "ALMG3"
+    ],
+    "sheet_thickness_detected": false,
+    "tube_dimension_detected": false,
+    "sheet_evidence_score": 5,
+    "tube_evidence_score": 0
+  }
+}

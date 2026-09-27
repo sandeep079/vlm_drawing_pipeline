@@ -1,0 +1,14 @@
+{
+  "drawing_id": "002_redacted",
+  "num_bends": 0,
+  "counting_method": "no_reliable_bend_evidence",
+  "bend_evidence": {
+    "abwicklung": false,
+    "bend_keyword": false,
+    "bend_angle_detected": false,
+    "bend_radius_detected": false,
+    "sheet_thickness_detected": false,
+    "bracket_keyword": false
+  },
+  "flags": []
+}
