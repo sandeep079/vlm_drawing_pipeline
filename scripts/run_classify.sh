@@ -1,3 +1,3 @@
 cd ~/aai_lab/vlm-drawing-pipeline
 
-python3 src/classify.py reference_samples/002_redacted.pdf
+python3 src/classify.py 

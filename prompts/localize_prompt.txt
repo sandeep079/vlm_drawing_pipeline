@@ -1,19 +1,49 @@
 You are an expert engineering drawing parser.
 Analyze this technical drawing image and detect ALL distinct visual components on the page.
 
-Extract bounding boxes in 0-1000 normalized coordinates [ymin, xmin, ymax, xmax] for every instance of:
+Extract bounding boxes in 0-1000 normalized coordinates [x0, y0, x1, y1] for every instance of:
+
 1. "title_block": The entire metadata table in the bottom-right corner (include revisions, tolerances, company logos).
 2. "orthographic_view": 2D projected engineering views (front, top, side) including their surrounding dimension lines.
 3. "isometric_view": 3D projected views of the component.
-4. "flat_pattern": Unfolded sheet metal layout views, if present.
+4. "section_view": Sectional view of a component showing an internal cut.
+5. "flat_pattern": Unfolded sheet metal layout views, if present.
+
+Return tight bounding boxes around each detected region.
+
+The bounding box should closely follow the complete visual region,
+including all relevant geometry, dimensions, and annotations.
+
+Do not intentionally add extra whitespace or margin.
+
+Only include regions actually present in the image.
+If multiple instances of a region type exist, return a separate
+bounding box for each instance.
+
+Do not stop after detecting one region. Inspect the entire page for all region types before returning the JSON.
 
 Return ONLY a valid JSON object matching this exact schema:
-{
-  "regions": [
-    {
-      "label": "title_block",
-      "box_2d": [ymin, xmin, ymax, xmax],
-      "conf": 0.95
-    }
-  ]
-}
+  {
+    "regions": [
+      {
+        "label": "title_block",
+        "box": [x0, y0, x1, y1],
+        "conf": 0.95
+      },
+      {
+        "label": "orthographic_view",
+        "box": [x0, y0, x1, y1],
+        "conf": 0.95
+      },
+      {
+        "label": "orthographic_view",
+        "box": [x0, y0, x1, y1],
+        "conf": 0.95
+      },
+      {
+        "label": "section_view",
+        "box": [x0, y0, x1, y1],
+        "conf": 0.95
+      }
+    ]
+  }
