@@ -14,7 +14,7 @@ if os.path.exists(output_folder):
 os.makedirs(output_folder)
 
 # Importing the pdf
-input_pdf_path = "reference_samples/001_redacted.pdf"
+input_pdf_path = "reference_samples/003_redacted.pdf"
 pdf = pymupdf.open(input_pdf_path)
 
 page = pdf[0] #first page
@@ -225,3 +225,14 @@ crop_and_save_image(orthographic_view_expanded_bounding_box, "orthographic_view"
 crop_and_save_image(isometric_view_expanded_bounding_box, "isometric_view")
 crop_and_save_image(section_view_expanded_bounding_box, "section_view") 
 crop_and_save_image(title_block_expanded_bounding_box, "title_block")
+
+
+
+
+# Lets convert the output python list into a json file and export it:
+json_file = open("json/Localization/Localization.json", "w")
+json.dump(json_data,json_file, indent=4)
+json_file.close()
+
+
+print("Localization Complete")

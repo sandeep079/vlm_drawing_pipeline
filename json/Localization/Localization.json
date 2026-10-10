@@ -1,0 +1,44 @@
+{
+    "regions": [
+        {
+            "label": "title_block",
+            "box": [
+                100,
+                770,
+                950,
+                970
+            ],
+            "conf": 0.95
+        },
+        {
+            "label": "orthographic_view",
+            "box": [
+                230,
+                220,
+                500,
+                350
+            ],
+            "conf": 0.95
+        },
+        {
+            "label": "orthographic_view",
+            "box": [
+                650,
+                220,
+                850,
+                350
+            ],
+            "conf": 0.95
+        },
+        {
+            "label": "isometric_view",
+            "box": [
+                280,
+                530,
+                780,
+                750
+            ],
+            "conf": 0.95
+        }
+    ]
+}
